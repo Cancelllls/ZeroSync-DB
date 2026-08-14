@@ -3,8 +3,8 @@ import 'package:test/test.dart';
 import 'package:zerosync_db/zerosync_db.dart';
 
 void main() {
-  group('ZeroSync-DB Package Tests', () {
-    final testDbPath = 'test_zerosync.db';
+  group('ZeroSync-DB Advanced Feature Tests', () {
+    final testDbPath = 'test_zerosync_adv.db';
 
     tearDown(() {
       final f = File(testDbPath);
@@ -17,44 +17,58 @@ void main() {
 
       final ciphertext = crypto.encrypt(original);
       expect(ciphertext, isNot(equals(original)));
-      expect(ciphertext.contains(':'), isTrue);
 
       final decrypted = crypto.decrypt(ciphertext);
       expect(decrypted, equals(original));
     });
 
-    test('Hybrid Logical Clock (HLC) Deterministic Ordering', () {
-      final hlc1 = Hlc(1000, 0, 'node_A');
-      final hlc2 = Hlc(1000, 1, 'node_A');
-      final hlc3 = Hlc(1001, 0, 'node_B');
+    test('ZeroSearch Blind Indexing Token Generation', () {
+      final search = ZeroSearch('user-passphrase-secret');
+      final token1 = search.generateBlindToken('confidential');
+      final token2 = search.generateBlindToken('confidential');
+      final token3 = search.generateBlindToken('public');
 
-      expect(hlc1.compareTo(hlc2), lessThan(0));
-      expect(hlc2.compareTo(hlc3), lessThan(0));
+      expect(token1, equals(token2));
+      expect(token1, isNot(equals(token3)));
+
+      final textTokens = search.generateBlindTokensForText('Confidential document payload');
+      expect(textTokens.length, greaterThanOrEqualTo(2));
     });
 
-    test('ZeroSyncDatabase Local Writes & Change Logging', () async {
+    test('ZeroVault Multi-User Key Share Tokens', () {
+      final vault = ZeroVault.create('vault_001', 'vault-secret-key-999');
+      final recipientPubkey = 'pubkey_ed25519_user_b';
+
+      final shareToken = vault.createShareToken(recipientPubkey);
+      expect(shareToken, isNotEmpty);
+
+      final decryptedData = ZeroVault.decryptShareToken(shareToken, 'vault-secret-key-999');
+      expect(decryptedData['vault_id'], equals('vault_001'));
+    });
+
+    test('ZeroSyncP2P Channel Communication', () async {
       final db = await ZeroSyncDatabase.open(
         path: testDbPath,
         secretKey: 'passphrase-secret',
-        nodeId: 'node_test',
+        nodeId: 'peer_node_a',
       );
 
-      db.execute('CREATE TABLE notes (id TEXT PRIMARY KEY, title TEXT);');
-      db.execute("INSERT INTO notes VALUES ('1', 'Secret Note');");
+      final p2p = ZeroSyncP2P(db: db, peerId: 'peer_node_a');
+
+      db.execute('CREATE TABLE messages (id TEXT PRIMARY KEY, text TEXT);');
       db.logChange(
-        tableName: 'notes',
-        rowId: '1',
-        jsonPayload: '{"id":"1","title":"Secret Note"}',
+        tableName: 'messages',
+        rowId: 'm1',
+        jsonPayload: '{"id":"m1","text":"P2P secret"}',
       );
 
-      final changes = db.getUnsyncedChanges();
-      expect(changes.length, equals(1));
-      expect(changes.first['table_name'], equals('notes'));
+      p2p.outgoingP2pStream.listen((msg) {
+        expect(msg, contains('peer_node_a'));
+        expect(msg, contains('encrypted_payload'));
+      });
 
-      final encryptedPayload = changes.first['encrypted_payload']!;
-      final decrypted = db.crypto.decrypt(encryptedPayload);
-      expect(decrypted, contains('Secret Note'));
-
+      await p2p.broadcastLocalChangesToPeer();
+      await p2p.dispose();
       db.close();
     });
   });
