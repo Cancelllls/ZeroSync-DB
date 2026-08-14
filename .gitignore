@@ -2,3 +2,5 @@
 .pub/
 build/
 *.db
+target/
+zerosync_core/target/
