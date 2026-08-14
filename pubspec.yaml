@@ -1,0 +1,21 @@
+name: zerosync_db
+description: Local-first, zero-knowledge SQLite CRDT sync engine with client-side AES-256-GCM E2EE over WebSockets & R2.
+version: 1.0.0
+repository: https://github.com/Cancelllls/ZeroSync-DB
+issue_tracker: https://github.com/Cancelllls/ZeroSync-DB/issues
+
+environment:
+  sdk: ">=3.1.0 <4.0.0"
+
+dependencies:
+  sqlite3: ^2.4.0
+  crypto: ^3.0.3
+  encrypt: ^5.0.3
+  web_socket_channel: ^3.0.1
+  path: ^1.9.0
+  uuid: ^4.5.1
+  meta: ^1.15.0
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^3.0.0
